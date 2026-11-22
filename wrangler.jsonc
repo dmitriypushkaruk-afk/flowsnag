@@ -1,12 +1,19 @@
-// Cloudflare Workers deploy: static assets only, no Worker code.
-// Built by Workers Builds: `npm run build`, then `npx wrangler deploy`.
+// Cloudflare Workers deploy, built by Workers Builds: `npm run build`, then `npx wrangler deploy`.
+// Static assets from dist/, plus one tiny Worker for /api/* (Jira OAuth token exchange, ADR 0002).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "flowsnag",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     // One-page app: unknown paths get index.html.
-    "not_found_handling": "single-page-application"
-  }
+    "not_found_handling": "single-page-application",
+    // Only /api/* reaches the Worker; everything else is served as a static file.
+    "run_worker_first": ["/api/*"]
+  },
+  // JIRA_CLIENT_ID and JIRA_CLIENT_SECRET are set as *secrets* in the Cloudflare dashboard
+  // (Worker → Settings → Variables and Secrets), so deploys never overwrite them.
+  "observability": { "enabled": false }
 }

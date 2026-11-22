@@ -4,12 +4,14 @@ import { looksLikeXes, parseXes } from '../core/xes';
 import { DATE_FORMATS, guessMapping, mapTable, parseCsv, type ColumnMapping, type RawTable } from '../core/csv';
 import type { EventLog } from '../core/types';
 import { softwareTeamDemo } from '../demo/synthetic';
+import { JiraCard } from './JiraConnect';
 
 interface Props {
   onLoad: (log: EventLog) => void;
+  jiraError?: string | null;
 }
 
-export function ImportScreen({ onLoad }: Props) {
+export function ImportScreen({ onLoad, jiraError }: Props) {
   const [table, setTable] = useState<{ name: string; table: RawTable } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function ImportScreen({ onLoad }: Props) {
       <section className="hero">
         <h1>See how your process really flows</h1>
         <p className="lead">
-          Drop an event log, connect a GitHub repository or open a demo. FlowSnag draws the real process map, shows where
+          Connect Jira or GitHub, drop an event log, or open a demo. FlowSnag draws the real process map, shows where
           work waits and where it goes back. <strong>Your data never leaves this browser.</strong>
         </p>
       </section>
@@ -127,6 +129,7 @@ export function ImportScreen({ onLoad }: Props) {
           )}
         </article>
 
+        <JiraCard error={jiraError} />
         <GithubCard onLoad={onLoad} />
       </section>
     </main>

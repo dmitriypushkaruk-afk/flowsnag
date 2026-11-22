@@ -651,3 +651,26 @@ code {
   grid-column: 2;
   font-size: 0.75rem;
 }
+
+.jira .jql {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.jira .jql textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.jira > button.link {
+  margin-bottom: 1rem;
+}
+
+.jira .error {
+  margin-bottom: 1rem;
+}
