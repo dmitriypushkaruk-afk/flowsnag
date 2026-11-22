@@ -1,0 +1,12 @@
+// Cloudflare Workers deploy: static assets only, no Worker code.
+// Built by Workers Builds: `npm run build`, then `npx wrangler deploy`.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "flowsnag",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    // One-page app: unknown paths get index.html.
+    "not_found_handling": "single-page-application"
+  }
+}
