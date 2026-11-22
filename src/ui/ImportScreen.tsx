@@ -160,20 +160,37 @@ function GithubCard({ onLoad }: Props) {
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Each run gets its own controller; a new run cancels the old one, and updates from a
+  // cancelled or finished run are ignored, so the button can never stay stuck.
+  const current = useRef<AbortController | null>(null);
+
   const run = async () => {
+    current.current?.abort();
+    const ctl = new AbortController();
+    current.current = ctl;
+    const live = () => current.current === ctl && !ctl.signal.aborted;
     setError(null);
     setProgress('Connecting to GitHub…');
     try {
       const events = await githubLog(repo, {
         token: token.trim() || undefined,
-        onProgress: (done, total) => setProgress(`Reading pull requests… ${done}/${total}`),
+        signal: ctl.signal,
+        onProgress: (done, total) => {
+          if (live()) setProgress(`Reading pull requests… ${done}/${total}`);
+        },
       });
+      if (!live()) return;
       if (events.length === 0) throw new GithubError('This repository has no pull requests yet.', 'input');
       onLoad({ name: `GitHub: ${repo.trim()} pull requests`, source: 'github', events });
     } catch (e) {
+      if (!live()) return;
+      if (e instanceof GithubError && e.kind === 'rate-limit') setShowToken(true);
       setError(e instanceof GithubError ? e.message : 'Something went wrong while reading GitHub.');
     } finally {
-      setProgress(null);
+      if (current.current === ctl) {
+        current.current = null;
+        setProgress(null);
+      }
     }
   };
 
@@ -191,7 +208,10 @@ function GithubCard({ onLoad }: Props) {
         {showToken ? (
           <input
             value={token}
-            onChange={(e) => setToken(e.target.value)}
+            onChange={(e) => {
+              setToken(e.target.value);
+              setError(null);
+            }}
             type="password"
             placeholder="Read-only token (optional)"
             aria-label="GitHub token"

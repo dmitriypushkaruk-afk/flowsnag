@@ -173,15 +173,20 @@ async function fetchRest(owner: string, name: string, o: GithubOptions): Promise
   const out: PrHistory[] = [];
   let done = 0;
   o.onProgress?.(0, take.length);
-  // A few requests at a time: fast, but polite to the API.
+  // A few requests at a time: fast, but polite to the API. The first failure stops the other
+  // workers and cancels their requests, so no progress is reported after the call has failed.
+  const stop = new AbortController();
+  const onOuterAbort = () => stop.abort();
+  o.signal?.addEventListener('abort', onOuterAbort);
   const queue = [...take];
   const worker = async () => {
-    for (let pr = queue.shift(); pr; pr = queue.shift()) {
+    for (let pr = queue.shift(); pr && !stop.signal.aborted; pr = queue.shift()) {
       const res = await call(f, `https://api.github.com/repos/${owner}/${name}/issues/${pr.number}/timeline?per_page=100`, {
         headers,
-        signal: o.signal,
+        signal: stop.signal,
       });
       const items = (await res.json()) as RestTimelineItem[];
+      if (stop.signal.aborted) return;
       out.push({
         number: pr.number,
         createdAt: pr.created_at,
@@ -191,7 +196,19 @@ async function fetchRest(owner: string, name: string, o: GithubOptions): Promise
       o.onProgress?.(++done, take.length);
     }
   };
-  await Promise.all(Array.from({ length: 4 }, worker));
+  try {
+    await Promise.all(
+      Array.from({ length: 4 }, () =>
+        worker().catch((e: unknown) => {
+          stop.abort();
+          throw e;
+        }),
+      ),
+    );
+  } finally {
+    stop.abort();
+    o.signal?.removeEventListener('abort', onOuterAbort);
+  }
   return out.sort((a, b) => b.number - a.number);
 }
 
