@@ -46,7 +46,9 @@ Pre-built GitHub demos: run the **Build GitHub demo data** action, or locally `G
 
 ## Deploy (Cloudflare Pages)
 
-Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git → this repository. Build command `npm run build`, output directory `dist`. The app is then live at `https://<project>.pages.dev`.
+Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git → this repository. Framework preset: none. Build command `npm run build`, output directory `dist`. Node version comes from `.nvmrc` (22). The app is then live at `https://<project>.pages.dev`; add the custom domain under the project's *Custom domains* tab.
+
+`public/_headers` sets a Content Security Policy: the page may only connect to itself and `api.github.com`. Add a source system's API there when a new connector needs it. There is no `_redirects` file on purpose: the app has a single URL, and Cloudflare Pages serves `index.html` for unknown paths when no `404.html` exists.
 
 ## License
 
