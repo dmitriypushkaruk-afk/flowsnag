@@ -22,10 +22,15 @@ Legend: [x] done, [ ] to do. Each slice is one PR.
 - [ ] T15 GitHub demo datasets selectable on the start screen (waits for the demo-data workflow to run once)
 - [x] T16 Playwright e2e in CI: demo, CSV, GitHub (mocked), "no requests to our domain" (FR-14)
 
-## Slice 3: Jira
-- [ ] T17 Jira OAuth 3LO in the browser + Cloudflare Worker for the token exchange
-- [ ] T18 Jira changelog → xray-log (pagination, status names, issue types)
-- [ ] T19 `npx flowsnag jira` CLI for big exports and Data Center
+## Slice 3: Jira (PR #5)
+- [x] T17 Jira OAuth 3LO in the browser + Cloudflare Worker for the token exchange
+- [x] T18 Jira changelog → xray-log (pagination, status names, issue types)
+- [x] T19 `npx flowsnag jira` CLI for big exports and Data Center
+
+## Slice 3 follow-ups
+- [ ] T19a Register the Atlassian OAuth app, set `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET` secrets, enable distribution (owner action)
+- [ ] T19b Spike on a real Jira Cloud site: bulk changelog scope, points per 1,000 issues (jira-api.md §7)
+- [ ] T19c Flag automation/bulk transitions as a filter (jira-api.md §4.1)
 
 ## Slice 4: launch
 - [ ] T20 Flow animation (FR-11)
