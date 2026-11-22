@@ -14,13 +14,13 @@ Legend: [x] done, [ ] to do. Each slice is one PR.
 - [x] T09 UI: import screen, column mapping, analysis view with map, paths, returns, histogram
 - [x] T10 Script + Action to pre-build GitHub demo datasets
 
-## Slice 2: export, filters, XES
-- [ ] T11 Export map as SVG and PNG with legend (FR-12)
-- [ ] T12 Filters: attribute values and period (FR-10)
-- [ ] T13 Resource anonymisation by default, "Person 1…N" (FR-13)
-- [ ] T14 XES import (FR-03), BPI Challenge demo
-- [ ] T15 GitHub demo datasets selectable on the start screen
-- [ ] T16 Playwright e2e in CI: demo, CSV, GitHub (mocked), "no requests to our domain" (FR-14)
+## Slice 2: export, filters, XES (PR #3)
+- [x] T11 Export map as SVG and PNG with legend (FR-12)
+- [x] T12 Filters: attribute values and period (FR-10)
+- [x] T13 Resource anonymisation by default, "Person 1…N" (FR-13)
+- [x] T14 XES import (FR-03), BPI Challenge demo
+- [ ] T15 GitHub demo datasets selectable on the start screen (waits for the demo-data workflow to run once)
+- [x] T16 Playwright e2e in CI: demo, CSV, GitHub (mocked), "no requests to our domain" (FR-14)
 
 ## Slice 3: Jira
 - [ ] T17 Jira OAuth 3LO in the browser + Cloudflare Worker for the token exchange

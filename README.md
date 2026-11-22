@@ -10,6 +10,9 @@
 * **Process map** (directly-follows graph): box colour = median time in the step, arrow width = number of cases, detail slider to hide rare paths.
 * **Paths** (variants) with their share and cycle time; click one to see only those cases.
 * **Returns** (rework) and the **cycle time** distribution.
+* **Filters** by any extra column and by the period in which cases started.
+* **Export** the map as SVG or PNG with a legend, ready for a retro or a report.
+* **Resources are anonymised** ("Person 1…N") unless you choose to show names. FlowSnag never ranks people.
 
 ## Data sources
 
@@ -17,6 +20,7 @@
 |---|---|
 | CSV / paste from Excel | one row per step: `case_id, activity, timestamp`, optional `resource` and any other columns. Columns and date format are guessed and can be changed. |
 | GitHub pull requests | enter `owner/repo`. Without a token about 50 recent PRs (GitHub's 60 requests/hour); with a read-only token up to 500. The token stays in the tab and goes only to `api.github.com`. |
+| XES | standard process mining event logs (`.xes`, `.xes.gz`); with start/complete pairs the complete events are used. |
 | Demo | synthetic software team board, 400 issues. |
 | Jira | planned (OAuth in the browser + CLI). |
 
@@ -37,6 +41,7 @@ Timestamps without a time zone are read as UTC.
 npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests (Vitest)
+npm run e2e        # browser tests (Playwright), after npm run build
 npm run build      # type check + production build into dist/
 ```
 

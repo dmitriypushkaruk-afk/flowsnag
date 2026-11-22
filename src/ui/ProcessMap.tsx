@@ -1,5 +1,5 @@
 import dagre from '@dagrejs/dagre';
-import { useMemo } from 'react';
+import { forwardRef, useMemo } from 'react';
 import type { ProcessMap as MapData } from '../core/analyze';
 import { formatDuration } from '../core/stats';
 import { END, START } from '../core/types';
@@ -23,7 +23,7 @@ interface Laid {
   width: number;
   height: number;
   nodes: { id: string; x: number; y: number; w: number; h: number }[];
-  edges: { from: string; to: string; points: { x: number; y: number }[] }[];
+  edges: { from: string; to: string; points: { x: number; y: number }[]; label?: { x: number; y: number } }[];
 }
 
 function layout(map: MapData): Laid {
@@ -49,7 +49,10 @@ function layout(map: MapData): Laid {
       const n = g.node(id);
       return { id, x: n.x, y: n.y, w: n.width, h: n.height };
     }),
-    edges: g.edges().map((e) => ({ from: e.v, to: e.w, points: g.edge(e).points ?? [] })),
+    edges: g.edges().map((e) => {
+      const d = g.edge(e);
+      return { from: e.v, to: e.w, points: d.points ?? [], label: d.x !== undefined && d.y !== undefined ? { x: d.x, y: d.y } : undefined };
+    }),
   };
 }
 
@@ -69,14 +72,31 @@ function path(points: { x: number; y: number }[]): string {
   return d;
 }
 
-/** Map waiting time to a colour from calm to hot. */
-function heat(share: number): string {
-  const s = Math.max(0, Math.min(1, share));
-  return `color-mix(in oklab, var(--heat-hot) ${Math.round(s * 100)}%, var(--heat-cold))`;
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1]!, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-export function ProcessMap({ map, highlight, onSelectNode }: Props) {
+/**
+ * Map waiting time to a colour from calm to hot. Computed as plain rgb() (not CSS color-mix)
+ * so an exported SVG looks the same in any viewer. Follows the current theme's tokens.
+ */
+function heatScale(): (share: number) => string {
+  const root = typeof document !== 'undefined' ? getComputedStyle(document.documentElement) : null;
+  const cold = hexToRgb(root?.getPropertyValue('--heat-cold') ?? '') ?? [238, 246, 244];
+  const hot = hexToRgb(root?.getPropertyValue('--heat-hot') ?? '') ?? [245, 158, 11];
+  return (share) => {
+    const s = Math.max(0, Math.min(1, share));
+    const c = cold.map((v, i) => Math.round(v + (hot[i]! - v) * s));
+    return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  };
+}
+
+export const ProcessMap = forwardRef<SVGSVGElement, Props>(function ProcessMap({ map, highlight, onSelectNode }, ref) {
   const laid = useMemo(() => layout(map), [map]);
+  const heat = heatScale();
   const byId = new Map(map.nodes.map((n) => [n.id, n]));
   const maxMedian = Math.max(1, ...map.nodes.map((n) => n.time?.medianMs ?? 0));
   const maxCount = Math.max(1, ...map.edges.map((e) => e.count));
@@ -86,6 +106,7 @@ export function ProcessMap({ map, highlight, onSelectNode }: Props) {
 
   return (
     <svg
+      ref={ref}
       className="map"
       viewBox={`0 0 ${laid.width} ${laid.height}`}
       width={laid.width}
@@ -107,7 +128,7 @@ export function ProcessMap({ map, highlight, onSelectNode }: Props) {
         if (!data) return null;
         const hi = isHi(e.from, e.to);
         const w = 1 + 7 * Math.sqrt(data.count / maxCount);
-        const mid = e.points[Math.floor(e.points.length / 2)];
+        const mid = e.label ? { x: e.label.x - 45, y: e.label.y } : e.points[Math.floor(e.points.length / 2)];
         const terminal = e.from === START || e.to === END;
         return (
           <g key={`${e.from}->${e.to}`} className={hi ? 'edge hi' : 'edge'}>
@@ -172,4 +193,4 @@ export function ProcessMap({ map, highlight, onSelectNode }: Props) {
       })}
     </svg>
   );
-}
+});

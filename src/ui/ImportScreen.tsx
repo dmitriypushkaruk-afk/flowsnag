@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { GithubError, githubLog } from '../connectors/github';
+import { looksLikeXes, parseXes } from '../core/xes';
 import { DATE_FORMATS, guessMapping, mapTable, parseCsv, type ColumnMapping, type RawTable } from '../core/csv';
 import type { EventLog } from '../core/types';
 import { softwareTeamDemo } from '../demo/synthetic';
@@ -15,6 +16,15 @@ export function ImportScreen({ onLoad }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
 
   const readText = (name: string, text: string) => {
+    if (looksLikeXes(text)) {
+      const r = parseXes(text);
+      if (r.events.length === 0) {
+        setCsvError(`“${name}” looks like XES but has no events with a name and a timestamp.`);
+        return;
+      }
+      onLoad({ name, source: 'xes', events: r.events });
+      return;
+    }
     const t = parseCsv(text);
     if (t.headers.length < 3 || t.rows.length === 0) {
       setCsvError(`“${name}” needs a header row and at least three columns: case, activity and time.`);
@@ -24,7 +34,16 @@ export function ImportScreen({ onLoad }: Props) {
     setTable({ name, table: t });
   };
 
-  const readFile = async (file: File) => readText(file.name, await file.text());
+  const readFile = async (file: File) => {
+    try {
+      const text = file.name.toLowerCase().endsWith('.gz')
+        ? await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).text()
+        : await file.text();
+      readText(file.name.replace(/\.gz$/i, ''), text);
+    } catch {
+      setCsvError(`Could not read “${file.name}”.`);
+    }
+  };
 
   if (table) {
     return (
@@ -70,10 +89,10 @@ export function ImportScreen({ onLoad }: Props) {
             if (f) void readFile(f);
           }}
         >
-          <h2>Your own CSV</h2>
+          <h2>Your own data</h2>
           <p>
-            One row per step: <code>case_id, activity, timestamp</code>. Extra columns become filters. You can paste from
-            Excel too.
+            CSV with one row per step: <code>case_id, activity, timestamp</code>; extra columns become filters. XES
+            event logs (also <code>.xes.gz</code>) work too. You can paste from Excel.
           </p>
           <div className="row">
             <button onClick={() => fileInput.current?.click()}>Choose file</button>
@@ -93,7 +112,7 @@ export function ImportScreen({ onLoad }: Props) {
           <input
             ref={fileInput}
             type="file"
-            accept=".csv,.tsv,.txt,text/csv"
+            accept=".csv,.tsv,.txt,.xes,.gz,text/csv"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
