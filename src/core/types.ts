@@ -11,7 +11,7 @@ export interface XrayEvent {
 
 export interface EventLog {
   name: string;
-  source: 'csv' | 'github' | 'demo';
+  source: 'csv' | 'xes' | 'github' | 'demo';
   events: XrayEvent[];
 }
 

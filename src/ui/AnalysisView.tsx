@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { anonymizeResources, isActive, NO_FILTER, summarizeAttributes, type Filter } from '../core/filters';
 import { formatDuration, formatPercent } from '../core/stats';
 import type { EventLog, Insight } from '../core/types';
 import { useAnalysis } from '../core/useAnalysis';
+import { exportPng, exportSvg } from './exportMap';
+import { FilterPanel } from './FilterPanel';
 import { ProcessMap, type Highlight } from './ProcessMap';
 
 interface Props {
@@ -15,7 +18,25 @@ export function AnalysisView({ log, onBack }: Props) {
   const [detail, setDetail] = useState(0.8);
   const [variant, setVariant] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
-  const { result: a, error, busy } = useAnalysis(log.events, detail, variant);
+  const [filter, setFilter] = useState<Filter>(NO_FILTER);
+  const [showNames, setShowNames] = useState(false);
+  const mapRef = useRef<SVGSVGElement>(null);
+
+  const hasResources = useMemo(() => log.events.some((e) => e.resource), [log.events]);
+  // Anonymised by default (FR-13). Switching resets resource filters, whose values change.
+  const events = useMemo(() => (showNames ? log.events : anonymizeResources(log.events)), [log.events, showNames]);
+  const summary = useMemo(() => summarizeAttributes(events), [events]);
+  const fullPeriod = useMemo(() => {
+    let from = Infinity;
+    let to = -Infinity;
+    for (const e of log.events) {
+      if (e.timestamp < from) from = e.timestamp;
+      if (e.timestamp > to) to = e.timestamp;
+    }
+    return { from, to };
+  }, [log.events]);
+  const totalCases = useMemo(() => new Set(log.events.map((e) => e.caseId)).size, [log.events]);
+  const { result: a, error, busy, empty } = useAnalysis(events, detail, variant, filter);
 
   if (error) {
     return (
@@ -27,6 +48,17 @@ export function AnalysisView({ log, onBack }: Props) {
   }
   if (!a) return <main className="analysis loading">Analyzing {log.events.length.toLocaleString('en')} events…</main>;
 
+  const changeFilter = (f: Filter) => {
+    setVariant(null);
+    setHighlight(null);
+    setFilter(f);
+  };
+  const exportInfo = () => ({
+    title: log.name,
+    subtitle: `${a.caseCount.toLocaleString('en')} cases · ${fmtDate(a.period.from)} – ${fmtDate(a.period.to)} · median cycle ${formatDuration(a.cycle.medianMs)}${
+      isActive(filter) ? ' · filtered' : ''
+    }`,
+  });
   const pick = (i: Insight) => setHighlight(i.target.node || i.target.edge ? i.target : null);
   const maxBin = Math.max(1, ...a.cycleHistogram.map((b) => b.count));
 
@@ -40,7 +72,10 @@ export function AnalysisView({ log, onBack }: Props) {
         <dl className="kpis">
           <div>
             <dt>Cases</dt>
-            <dd>{a.caseCount.toLocaleString('en')}</dd>
+            <dd>
+              {a.caseCount.toLocaleString('en')}
+              {a.caseCount !== totalCases && <span className="hint"> of {totalCases.toLocaleString('en')}</span>}
+            </dd>
           </div>
           <div>
             <dt>Events</dt>
@@ -101,9 +136,17 @@ export function AnalysisView({ log, onBack }: Props) {
                 Showing one path ✕
               </button>
             )}
+            <span className="spacer" />
+            <button onClick={() => mapRef.current && exportSvg(mapRef.current, exportInfo())}>SVG</button>
+            <button onClick={() => mapRef.current && void exportPng(mapRef.current, exportInfo())}>PNG</button>
           </div>
+          {empty && (
+            <p className="error" role="status">
+              No cases match these filters. The map still shows the previous result.
+            </p>
+          )}
           <div className="map-scroll">
-            <ProcessMap map={a.map} highlight={highlight} onSelectNode={(id) => setHighlight({ node: id })} />
+            <ProcessMap ref={mapRef} map={a.map} highlight={highlight} onSelectNode={(id) => setHighlight({ node: id })} />
           </div>
           <p className="legend">
             Box colour: median time spent in the step (darker is longer). Arrow width: how many cases took that path.
@@ -112,6 +155,20 @@ export function AnalysisView({ log, onBack }: Props) {
         </div>
 
         <aside className="side">
+          <FilterPanel
+            summary={summary}
+            period={fullPeriod}
+            filter={filter}
+            onChange={changeFilter}
+            showNames={showNames}
+            onShowNames={(v) => {
+              setShowNames(v);
+              const { Resource: _drop, ...rest } = filter.attrs;
+              void _drop;
+              changeFilter({ ...filter, attrs: rest });
+            }}
+            hasResources={hasResources}
+          />
           <section>
             <h2>Paths</h2>
             <ol className="variants">
