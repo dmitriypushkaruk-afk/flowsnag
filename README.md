@@ -44,11 +44,11 @@ Code map: `src/core` (format, CSV, analysis; no UI), `src/connectors` (GitHub), 
 
 Pre-built GitHub demos: run the **Build GitHub demo data** action, or locally `GITHUB_TOKEN=... npm run demo:github -- vitejs/vite 100`.
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare Workers, static assets)
 
-Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git → this repository. Framework preset: none. Build command `npm run build`, output directory `dist`. Node version comes from `.nvmrc` (22). The app is then live at `https://<project>.pages.dev`; add the custom domain under the project's *Custom domains* tab.
+Cloudflare dashboard → Workers & Pages → Create → Import a repository → this repository. Build command `npm run build`, deploy command `npx wrangler deploy`, path `/`. `wrangler.jsonc` tells Cloudflare to serve `dist/` as static assets (no Worker code) with a single-page-app fallback. Node version comes from `.nvmrc` (22). Every push to `main` then deploys; other branches get preview URLs. Add the custom domain under the Worker's *Settings → Domains & Routes*.
 
-`public/_headers` sets a Content Security Policy: the page may only connect to itself and `api.github.com`. Add a source system's API there when a new connector needs it. There is no `_redirects` file on purpose: the app has a single URL, and Cloudflare Pages serves `index.html` for unknown paths when no `404.html` exists.
+`public/_headers` (copied to `dist/`) sets a Content Security Policy: the page may only connect to itself and `api.github.com`. Add a source system's API there when a new connector needs it.
 
 ## License
 
