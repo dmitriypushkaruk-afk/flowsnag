@@ -58,3 +58,50 @@ describe('github connector', () => {
     expect(ev.map((e) => e.activity)).toEqual([ACT.opened, ACT.reviewRequested]);
   });
 });
+
+describe('github connector after a failure', () => {
+  it('stops the other workers and reports no progress after the error', async () => {
+    let timelineCalls = 0;
+    const progress: number[] = [];
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      if (url.includes('/pulls?')) {
+        return json(
+          Array.from({ length: 20 }, (_, i) => ({ number: i + 1, created_at: '2026-01-01T10:00:00Z' })),
+          { 'x-ratelimit-remaining': '59' },
+        );
+      }
+      timelineCalls++;
+      if (timelineCalls === 3) return json({ message: 'limit' }, { 'x-ratelimit-remaining': '0' }, 403);
+      // Slow responses that honour cancellation, like the real fetch.
+      await new Promise((resolve, reject) => {
+        const t = setTimeout(resolve, 20);
+        init.signal?.addEventListener('abort', () => {
+          clearTimeout(t);
+          reject(new DOMException('aborted', 'AbortError'));
+        });
+      });
+      return json([]);
+    }) as unknown as typeof fetch;
+    await expect(githubLog('o/r', { fetch: fakeFetch, onProgress: (d) => progress.push(d) })).rejects.toMatchObject({ kind: 'rate-limit' });
+    const after = progress.length;
+    await new Promise((r) => setTimeout(r, 100));
+    expect(progress.length).toBe(after);
+    expect(timelineCalls).toBeLessThan(8);
+  });
+
+  it('uses GraphQL with the token, whatever happened before', async () => {
+    const urls: string[] = [];
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      urls.push(url);
+      expect((init.headers as Record<string, string>).Authorization).toBe('bearer tok');
+      return json({
+        data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [
+          { number: 1, createdAt: '2026-01-01T00:00:00Z', labels: { nodes: [] }, timelineItems: { nodes: [{ __typename: 'MergedEvent', createdAt: '2026-01-02T00:00:00Z' }] } },
+        ] } } },
+      });
+    }) as unknown as typeof fetch;
+    const ev = await githubLog('o/r', { token: 'tok', fetch: fakeFetch });
+    expect(urls).toEqual(['https://api.github.com/graphql']);
+    expect(ev.map((e) => e.activity)).toEqual([ACT.opened, ACT.merged]);
+  });
+});

@@ -112,3 +112,41 @@ test('GitHub repository (API mocked)', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'GitHub: someone/repo pull requests' })).toBeVisible();
   await expect(page.locator('.map .node')).toHaveCount(4);
 });
+
+test('after hitting the rate limit, a token can be added and works', async ({ page }) => {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'x-ratelimit-remaining, x-ratelimit-reset' };
+  let timeline = 0;
+  await page.route('https://api.github.com/**', async (route) => {
+    const url = route.request().url();
+    if (url.endsWith('/graphql')) {
+      expect(route.request().headers().authorization).toBe('bearer ghp_test');
+      return route.fulfill({
+        headers: cors,
+        json: {
+          data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [
+            { number: 3, createdAt: '2026-01-01T00:00:00Z', labels: { nodes: [] }, timelineItems: { nodes: [{ __typename: 'MergedEvent', createdAt: '2026-01-02T00:00:00Z' }] } },
+          ] } } },
+        },
+      });
+    }
+    if (url.includes('/pulls?')) {
+      return route.fulfill({
+        json: Array.from({ length: 50 }, (_, i) => ({ number: i + 1, created_at: '2026-01-01T10:00:00Z' })),
+        headers: { ...cors, 'x-ratelimit-remaining': '50' },
+      });
+    }
+    // Timelines: limit runs out after a few, the rest are slow.
+    if (++timeline > 5) return route.fulfill({ status: 403, json: { message: 'API rate limit exceeded' }, headers: { ...cors, 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1800000000' } });
+    await new Promise((r) => setTimeout(r, 50));
+    return route.fulfill({ json: [], headers: cors });
+  });
+  await page.goto('/');
+  await page.getByLabel('Repository').fill('big/repo');
+  await page.getByRole('button', { name: 'Analyze' }).click();
+  await expect(page.getByRole('alert')).toContainText('hourly limit');
+  // The token field opens by itself and the button is usable again.
+  await page.getByLabel('GitHub token').fill('ghp_test');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Analyze' }).click();
+  await expect(page.getByRole('heading', { name: 'GitHub: big/repo pull requests' })).toBeVisible();
+});
