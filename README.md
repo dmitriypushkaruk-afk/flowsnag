@@ -58,7 +58,7 @@ Cloudflare dashboard → Workers & Pages → Create → Import a repository → 
 
 ## Jira sign-in setup (once, by the site owner)
 
-1. [developer.atlassian.com/console/myapps](https://developer.atlassian.com/console/myapps/) → Create → OAuth 2.0 integration, name "FlowSnag".
+1. [developer.atlassian.com/console/myapps](https://developer.atlassian.com/console/myapps/) → Create → OAuth 2.0 integration. Name **FlowSnag** (users see it on the consent screen). Access type **Resource-level**: the user picks one site during consent, and the site list in FlowSnag shows exactly that site. The note about rotating refresh tokens does not affect FlowSnag: it never asks for `offline_access`, so it gets no refresh token; a session lasts about an hour, then the user clicks Connect again.
 2. Permissions → Jira API → add the classic scope **`read:jira-work`**.
 3. Authorization → callback URL **`https://flowsnag.app/`** (add the `*.workers.dev` URL too if you test there).
 4. Distribution → Sharing: enable, fill in the vendor and personal-data details, so any Jira site can connect.
