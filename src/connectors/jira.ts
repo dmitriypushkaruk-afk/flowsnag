@@ -53,16 +53,23 @@ export interface JiraIssue {
 
 export interface JiraHistory {
   id: string;
-  created: string;
+  /** ISO string; the bulk changelog endpoint sends epoch milliseconds instead. */
+  created: string | number;
   author?: { displayName?: string; accountType?: string } | null;
   items: { field: string; fieldId?: string; fromString?: string | null; toString?: string | null }[];
 }
 
 export const ISSUE_FIELDS = ['created', 'resolutiondate', 'status', 'issuetype', 'priority', 'project'];
 
-/** Jira sends "+0200"; not every JS engine parses an offset without a colon. */
-export function parseJiraTime(s: string): number {
-  return Date.parse(s.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+/**
+ * Jira sends "+0200"; not every JS engine parses an offset without a colon.
+ * /changelog/bulkfetch sends `created` as epoch milliseconds (a number), so accept that too.
+ */
+export function parseJiraTime(v: unknown): number {
+  if (typeof v === 'number') return Number.isFinite(v) ? (v < 1e11 ? v * 1000 : v) : NaN;
+  if (typeof v !== 'string') return NaN;
+  if (/^\d+$/.test(v)) return parseJiraTime(Number(v));
+  return Date.parse(v.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
 }
 
 function isAutomation(author: JiraHistory['author']): boolean {
@@ -73,7 +80,7 @@ function isAutomation(author: JiraHistory['author']): boolean {
 export function issueToEvents(issue: JiraIssue, histories: JiraHistory[]): XrayEvent[] {
   const changes = histories
     .flatMap((h) =>
-      h.items
+      (h.items ?? [])
         .filter((it) => it.field === 'status' || it.fieldId === 'status')
         .map((it) => ({ h, it, t: parseJiraTime(h.created) })),
     )
@@ -87,12 +94,13 @@ export function issueToEvents(issue: JiraIssue, histories: JiraHistory[]): XrayE
     project: f.project?.key ?? issue.key.split('-')[0] ?? '',
     state: f.status?.statusCategory?.key === 'done' ? 'Done' : 'Open',
   };
-  const initial = changes[0]?.it.fromString ?? f.status?.name ?? 'Created';
+  const from = changes[0]?.it.fromString;
+  const initial = (typeof from === 'string' && from) || f.status?.name || 'Created';
   const created = parseJiraTime(f.created);
   const events: XrayEvent[] = [];
   if (!Number.isNaN(created)) events.push({ caseId: issue.key, activity: initial, timestamp: created, attrs });
   for (const { h, it, t } of changes) {
-    if (!it.toString) continue;
+    if (typeof it.toString !== 'string' || !it.toString) continue;
     events.push({
       caseId: issue.key,
       activity: it.toString,
@@ -218,7 +226,7 @@ async function changelogsCloud(c: Client, issues: JiraIssue[], o: JiraOptions): 
           maxResults: 1000,
           nextPageToken,
         });
-        for (const l of page.issueChangeLogs) for (const h of l.changeHistories) add(l.issueId, h);
+        for (const l of page.issueChangeLogs ?? []) for (const h of l.changeHistories ?? []) add(String(l.issueId), h);
         nextPageToken = page.nextPageToken;
       } while (nextPageToken);
       done += chunk.length;
@@ -238,9 +246,9 @@ async function changelogsCloud(c: Client, issues: JiraIssue[], o: JiraOptions): 
             `/rest/api/3/issue/${issue.id}/changelog?startAt=${startAt}&maxResults=100`,
             o,
           );
-          for (const h of page.values) add(issue.id, h);
-          startAt += page.values.length;
-          if (page.isLast !== false || page.values.length === 0) break;
+          for (const h of page.values ?? []) add(issue.id, h);
+          startAt += (page.values?.length ?? 0);
+          if (page.isLast !== false || !page.values?.length) break;
         }
         o.onProgress?.('history', ++done, issues.length);
       }

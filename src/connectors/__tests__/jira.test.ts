@@ -27,6 +27,15 @@ describe('jira mapping', () => {
     expect(parseJiraTime('2026-10-01T09:00:00.000+0200')).toBe(Date.UTC(2026, 9, 1, 7));
   });
 
+  it('accepts epoch times, as the bulk changelog endpoint sends them', () => {
+    const ms = Date.UTC(2026, 9, 1, 7);
+    expect(parseJiraTime(ms)).toBe(ms);
+    expect(parseJiraTime(ms / 1000)).toBe(ms);
+    expect(parseJiraTime(String(ms))).toBe(ms);
+    expect(parseJiraTime(undefined)).toBeNaN();
+    expect(parseJiraTime({})).toBeNaN();
+  });
+
   it('starts with the initial status at creation, then each status entered', () => {
     const ev = issueToEvents(issue('1', 'ABC-1'), [
       change('11', '2026-10-02T09:00:00.000+0200', 'In Progress', 'Review'),
@@ -78,6 +87,32 @@ describe('jira cloud fetch', () => {
     expect(calls[0]!.body).toMatchObject({ jql: 'project = ABC', maxResults: 100 });
     expect(ev.filter((e) => e.caseId === 'ABC-1').map((e) => e.activity)).toEqual(['To Do', 'Done']);
     expect(ev.filter((e) => e.caseId === 'ABC-2').map((e) => e.activity)).toEqual(['Done']);
+  });
+
+  it('reads bulk changelogs with numeric times and ids (real Cloud payload shape)', async () => {
+    const t = Date.UTC(2026, 9, 2, 8);
+    const fake = (async (url: string) => {
+      if (url.endsWith('/search/jql')) return json({ issues: [issue('1', 'ABC-1')], isLast: true });
+      if (url.endsWith('/changelog/bulkfetch')) {
+        return json({
+          issueChangeLogs: [
+            {
+              issueId: 1,
+              changeHistories: [
+                { id: 10, created: t, author: { accountId: 'x', accountType: 'atlassian', displayName: 'Ä Ö' }, items: [{ field: 'status', fieldId: 'status', from: '1', fromString: 'Zu erledigen', to: '3', toString: 'In Arbeit' }] },
+                { id: 11, created: t + 3600_000, author: null },
+              ],
+            },
+          ],
+        });
+      }
+      throw new Error(url);
+    }) as unknown as typeof fetch;
+    const ev = await jiraLog({ kind: 'oauth', cloudId: 'cid', accessToken: 't' }, { jql: 'x', fetch: fake });
+    expect(ev.map((e) => [e.activity, e.timestamp])).toEqual([
+      ['Zu erledigen', Date.parse('2026-10-01T09:00:00.000+02:00')],
+      ['In Arbeit', t],
+    ]);
   });
 
   it('falls back to one changelog request per issue when bulk is not allowed', async () => {
