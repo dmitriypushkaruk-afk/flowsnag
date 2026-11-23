@@ -28,8 +28,8 @@ Legend: [x] done, [ ] to do. Each slice is one PR.
 - [x] T19 `npx flowsnag jira` CLI for big exports and Data Center
 
 ## Slice 3 follow-ups
-- [ ] T19a Register the Atlassian OAuth app, set `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET` secrets, enable distribution (owner action)
-- [ ] T19b Spike on a real Jira Cloud site: bulk changelog scope, points per 1,000 issues (jira-api.md §7)
+- [x] T19a Register the Atlassian OAuth app, set `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET` secrets, enable distribution (owner action)
+- [ ] T19b Spike on a real Jira Cloud site: bulk changelog scope, points per 1,000 issues (jira-api.md §7) (first finding: bulkfetch sends `created` as epoch ms, fixed in this PR)
 - [ ] T19c Flag automation/bulk transitions as a filter (jira-api.md §4.1)
 
 ## Slice 4: launch
